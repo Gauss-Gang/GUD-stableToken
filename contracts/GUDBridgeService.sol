@@ -29,7 +29,7 @@ interface IGUD {
  *      @dev contract desinged to share same contrat address on both Away and Gauss Chains
  */
 contract GUDBridgeService is Ownable, ReentrancyGuard {
-    address public PAPER;
+    address public FeeToken;
     address public GUD;
     address public USDC;
     address public BRIDGE;
@@ -37,7 +37,7 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
     bool private _isGauss;
     bool private _initialized = false;
 
-    uint256 private _paperAmount = 100 ether;
+    uint256 private _feeAmount = 50 ether;
     uint16 private _confirmations = 4;
 
     uint private constant _gaussChainID = 1777;
@@ -45,7 +45,8 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
 
     event Recover(address to, address token, uint amount);
     event UpdateBridge(address bridge);
-    event UpdatePaperAmount(uint256 amount);
+    event UpdateFeeToken(address feeToken);
+    event UpdateFeeAmount(uint256 amount);
     event UpdateConfirmations(uint16 amount);
     event MintGUD(address to, uint amount);
     event BurnGUD(address to, uint amount);
@@ -67,21 +68,21 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
      * Called after deploy to set contract addresses.
      *
      * @param _bridge Bridge address
-     * @param _paper PAPER token address
+     * @param _feeToken Fee token address
      * @param _gud GUD address on Gauss (On 'Away' Chain, set to address(0))
      * @param _usdc USDC address on Polygon (on gauss this is address(0))
      */
-    function init(address _bridge, address _paper, address _gud, address _usdc) external onlyOwner {
+    function init(address _bridge, address _feeToken, address _gud, address _usdc) external onlyOwner {
         
         require(_initialized == false, "Contract has previously been initialized");
         
         BRIDGE = _bridge;
-        PAPER  = _paper;
+        FeeToken  = _feeToken;
         GUD    = _gud;
         USDC   = _usdc;
 
-        // Approve BRIDGE for PAPER token transfers
-        IERC20(PAPER).approve(_bridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+        // Approve BRIDGE for Fee token transfers
+        IERC20(FeeToken).approve(_bridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
 
         uint256 currentChainId = block.chainid;
 
@@ -138,9 +139,9 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
             _txId = IBridgeV2(BRIDGE).sendRequestExpress(
                 address(this),  // recipient is the corresponding destination deploy of this contract, deployed contract addresses must match!
                 _chain,         // id of the destination chain
-                _paperAmount,   // paper amount, just min so gas/tx fees are paid - desination contract gets the change
+                _feeAmount,     // fee amount, just min so gas/tx fees are paid - desination contract gets the change
                 _source,        // "source"
-                _packageData,    // encoded data to be processed by this contract on Gauss
+                _packageData,   // encoded data to be processed by this contract on Gauss
                 _confirmations  // number of confirmations before validating
             );
         } 
@@ -149,7 +150,7 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
             _txId = IBridgeV2(BRIDGE).sendRequest(
                 address(this),  // recipient is the corresponding destination deploy of this contract, deployed contract addresses must match!
                 _chain,         // id of the destination chain
-                _paperAmount,   // paper amount, just min so gas/tx fees are paid - desination contract gets the change
+                _feeAmount,     // fee amount, just min so gas/tx fees are paid - desination contract gets the change
                 _source,        // "source"
                 _packageData,   // encoded data to be processed by this contract on Gauss
                 _confirmations  // number of confirmations before validating
@@ -191,19 +192,28 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
     }
 
 
-    // Update the Paper Bridge address and approve the new bridge to transfer Paper
+    // Update the Paper Bridge address and approve the new bridge to transfer the Fee Token
     function updateBridge(address _newBridge) external onlyOwner {
-        IERC20(PAPER).approve(BRIDGE, 0);
+        IERC20(FeeToken).approve(BRIDGE, 0);
         BRIDGE = _newBridge;
-        IERC20(PAPER).approve(_newBridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+        IERC20(FeeToken).approve(_newBridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
         emit UpdateBridge(_newBridge);
     }
 
 
-    // Update the paper amount for minimum gas/tx fee payment
-    function updatePaperAmount(uint256 _amount) external onlyOwner {
-        _paperAmount = _amount;
-        emit UpdatePaperAmount(_amount);
+    // Update the Fee Token and approve the bridge to transfer the new Token
+    function updateFeeToken(address _newFeeToken) external onlyOwner {
+        IERC20(FeeToken).approve(BRIDGE, 0);
+        FeeToken = _newFeeToken;
+        IERC20(_newFeeToken).approve(BRIDGE, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+        emit UpdateFeeToken(_newFeeToken);
+    }
+
+
+    // Update the Fee amount for minimum gas/tx fee payment
+    function updateFeeAmount(uint256 _amount) external onlyOwner {
+        _feeAmount = _amount;
+        emit UpdateFeeAmount(_amount);
     }
 
 
